@@ -15,11 +15,12 @@
 #include "Shader.hpp"
 #include "Camera.hpp"
 
+void glfwSetUp();
+
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mode);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void do_movement();
-
-void glfwSetUp();
+void printVec(glm::vec3 vec);
 
 GLFWwindow* window;
 const GLuint WIDTH = 800, HEIGHT = 600;
@@ -36,12 +37,14 @@ Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
 
 const GLchar* vertexShaderSrc = 
         "#version 330 core\n"
-        "in float inValue;\n"
-        "out float outValue;\n"
+        "in vec3 pos;\n"
+        "in vec3 vel;\n"
+        "in vec3 col;\n"
+        "out vec3 outValue;\n"
 
         "void main()\n"
         "{\n"
-            "outValue = sqrt(inValue);\n"
+            "outValue = sqrt(pos);\n"
         "}\n";
 
 //Shader *lightingShader = new Shader(SHADER_PATH "lighting.vert", SHADER_PATH "lighting.frag");
@@ -67,34 +70,57 @@ int main()
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
 
-    GLfloat data[] = { 1.0f, 2.0f, 3.0f, 4.0f, 5.0f };
+    int numParticles = 10;
+    std::vector<glm::vec3> data;
+    std::vector<glm::vec3> feedback;
+
+    for (int i = 0; i < numParticles; i++) {
+        glm::vec3 pos = glm::vec3(16.0f, 16.0f, 16.0f);
+        glm::vec3 vel = glm::vec3(16.0f, 16.0f, 16.0f);
+        glm::vec3 col = glm::vec3(16.0f, 16.0f, 16.0f);
+        glm::vec3 emptyVec = glm::vec3(0.0f, 0.0f, 0.0f);
+        data.push_back(pos);
+        data.push_back(vel);
+        data.push_back(col);
+
+        feedback.push_back(emptyVec);
+    }
 
     GLuint vbo;
     glGenBuffers(1, &vbo);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(data), data, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, data.size()*sizeof(glm::vec3), &data[0], GL_STATIC_DRAW);
+    
+    GLint posAttrib = glGetAttribLocation(program, "pos");
+    glEnableVertexAttribArray(posAttrib);
+    glVertexAttribPointer(posAttrib, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(GLfloat), 0);
 
-    GLint inputAttrib = glGetAttribLocation(program, "inValue");
-    glEnableVertexAttribArray(inputAttrib);
-    glVertexAttribPointer(inputAttrib, 1, GL_FLOAT, GL_FALSE, 0, 0);
+    GLint colAttrib = glGetAttribLocation(program, "vel");
+    glEnableVertexAttribArray(colAttrib);
+    glVertexAttribPointer(colAttrib, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(GLfloat), (GLvoid*)(3 * sizeof(GLfloat)));
+
+    GLint velAttrib = glGetAttribLocation(program, "col");
+    glEnableVertexAttribArray(velAttrib);
+    glVertexAttribPointer(velAttrib, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(GLfloat), (GLvoid*)(6 * sizeof(GLfloat)));
+
+
+
+
+
 
     GLuint tbo;
     glGenBuffers(1, &tbo);
     glBindBuffer(GL_ARRAY_BUFFER, tbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(data), nullptr, GL_STATIC_READ);
+    glBufferData(GL_ARRAY_BUFFER, data.size() * sizeof(glm::vec3), nullptr, GL_STATIC_READ);
 
 
     glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, tbo);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
 
 
-
-
-
-
     int i = 0;
     // while (!glfwWindowShouldClose(window))
-    while (i++ < 100)
+    while (i++ < 10)
     {
         std::cout << "i : " << i << std::endl;
         // Calculate deltatime of current frame
@@ -120,22 +146,23 @@ int main()
         // Perform transform feedback
         glEnable(GL_RASTERIZER_DISCARD);
         glBeginTransformFeedback(GL_POINTS);
-            glDrawArrays(GL_POINTS, 0, 5);
+            glDrawArrays(GL_POINTS, 0, numParticles);
         glEndTransformFeedback();
         glDisable(GL_RASTERIZER_DISCARD);
         glFlush();
 
 
-        GLfloat feedback[5];
-        glGetBufferSubData(GL_TRANSFORM_FEEDBACK_BUFFER, 0, sizeof(feedback), feedback);
+        // GLfloat feedback[5];
+        glGetBufferSubData(GL_TRANSFORM_FEEDBACK_BUFFER, 0, feedback.size() * sizeof(glm::vec3), &feedback[0]);
 
-        printf("%f %f %f %f %f\n", feedback[0], feedback[1], feedback[2], feedback[3], feedback[4]);
+        // printf("%f %f %f %f %f\n", feedback[0], feedback[1], feedback[2], feedback[3], feedback[4]);
 
-        for (int i = 0; i < 5; i ++) {
-            data[i] = feedback[i];
+        for (int i = 0; i < numParticles; i ++) {
+            data[3*i] = feedback[i];
+            printVec(data[3*i]);
         }
-        printf("%f %f %f %f %f\n", data[0], data[1], data[2], data[3], data[4]);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, 5*sizeof(float), &data[0]);
+        // printf("%f %f %f %f %f\n", data[0], data[1], data[2], data[3], data[4]);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, data.size()*sizeof(glm::vec3), &data[0]);
 
 
 
@@ -151,6 +178,12 @@ int main()
 
     glDeleteVertexArrays(1, &vao);
     return 0;
+}
+
+void printVec(glm::vec3 vec) {
+    std::cout << vec.x << " ";
+    std::cout << vec.y << " ";
+    std::cout << vec.z << std::endl;
 }
 
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mode) {
